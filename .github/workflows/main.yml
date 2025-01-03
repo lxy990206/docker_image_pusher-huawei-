@@ -1,3 +1,58 @@
+name: Docker
+
+on:
+  workflow_dispatch:  # 手动触发工作流
+  push:
+    branches: [ main ]  # 推送到main分支时触发工作流
+
+env:
+  HUAWEI_SWR_REGION: "${{ secrets.HUAWEI_SWR_REGION}}"  # 华为云SWR的区域
+  HUAWEI_SWR_USER: "${{ secrets.HUAWEI_SWR_USER }}"  # 华为云SWR的用户名Access Key ID
+  HUAWEI_SWR_PASSWORD: "${{ secrets.HUAWEI_SWR_PASSWORD }}"  # 华为云SWR的密码Secret Access Key
+  HUAWEI_SWR_NAMESPACE: "${{ secrets.HUAWEI_SWR_NAMESPACE }}"  # 华为云SWR的命名空间
+
+jobs:
+  build:
+    name: Pull and Push  # 工作流名称
+    runs-on: ubuntu-latest  # 运行环境为最新的Ubuntu
+
+    steps:
+    - name: Before freeing up disk space  # 执行磁盘空间清理前的操作
+      run: |
+        echo "Before freeing up disk space"  # 输出提示信息
+        echo "=============================================================================="  # 输出分隔符
+        df -hT  # 查看当前磁盘空间使用情况
+        echo "=============================================================================="  # 输出分隔符
+
+    - name: Maximize build space  # 清理磁盘空间
+      uses: easimon/maximize-build-space@master  # 使用easimon/maximize-build-space动作
+      with:
+        root-reserve-mb: 2048  # 保留2048MB的根目录空间
+        swap-size-mb: 128  # 创建128MB的交换空间
+        remove-dotnet: 'true'  # 移除.NET环境
+        remove-haskell: 'true'  # 移除Haskell环境
+        build-mount-path: '/var/lib/docker/'  # 指定Docker的构建挂载路径
+
+    - name: Restart docker  # 重启Docker服务
+      run: sudo service docker restart  # 使用sudo命令重启Docker服务
+
+    - name: Free up disk space complete  # 执行磁盘空间清理后的操作
+      run: |
+        echo "Free up disk space complete"  # 输出提示信息
+        echo "=============================================================================="  # 输出分隔符
+        df -hT  # 查看清理后的磁盘空间使用情况
+        echo "=============================================================================="  # 输出分隔符
+
+    - name: Checkout Code  # 检出代码
+      uses: actions/checkout@v4  # 使用actions/checkout动作，版本为v4
+
+    - name: Docker Setup Buildx  # 设置Docker Buildx环境
+      uses: docker/setup-buildx-action@v3  # 使用docker/setup-buildx-action动作，版本为v3
+
+    - name: Login to Huawei SWR  # 登录华为云SWR
+      run: |
+        docker login -u ${HUAWEI_SWR_REGION}@${HUAWEI_SWR_USER} -p ${HUAWEI_SWR_PASSWORD} swr.${HUAWEI_SWR_REGION}.myhuaweicloud.com   # 使用docker login命令登录华为云SWR，用户名格式为区域@用户名
+
 - name: Build and push image to Huawei SWR  # 构建并推送镜像到华为云SWR
       run: |
         while IFS= read -r line || [ -n "$line" ]; do  # 逐行读取images.txt文件中的内容
