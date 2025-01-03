@@ -1,9 +1,12 @@
 name: Pull Docker Images from File and Push to Huawei SWR
 
+# 定义触发条件
 on:
   push:
     branches:
       - main
+    paths:
+      - 'images.txt'  # 只有当 images.txt 文件发生变化时触发工作流
 
 jobs:
   build-and-push-docker-images:
