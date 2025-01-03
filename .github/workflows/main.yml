@@ -58,3 +58,6 @@ jobs:
             echo "Pushing image to Huawei SWR"
             sudo docker push $NEW_TAG
           done
+
+
+
