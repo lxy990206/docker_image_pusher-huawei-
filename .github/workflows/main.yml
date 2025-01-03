@@ -51,8 +51,7 @@ jobs:
 
     - name: Login to Huawei SWR  # 登录华为云SWR
       run: |
-        docker login -u ${HUAWEI_SWR_REGION}@${HUAWEI_SWR_USER} -p ${HUAWEI_SWR_PASSWORD} swr.${HUAWEI_SWR_REGION}.myhuaweicloud.com   # 使用docker login命令登录华为云SWR，用户名格式为区域@用户名
-
+        docker login -u cn-southwest-2@1G5ZJXISPGZO0KILT4Q5 -p 52606b8cba405f87f591a23c228a9ac9674dcec45be67ea277bbb09840d0620f swr.cn-southwest-2.myhuaweicloud.com
     - name: Build and push image to Huawei SWR  # 构建并推送镜像到华为云SWR
       run: |
         declare -A duplicate_images  # 声明一个关联数组，用于存储重名镜像的信息
