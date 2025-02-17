@@ -29,9 +29,7 @@ jobs:
         fi
 
         # 使用标准输入登录（关键修复）
-        echo "$HW_PASSWORD" | docker login \
-          -u "$HW_USERNAME" \
-          --password-stdin \
+        docker login -u "$HW_USERNAME" -p "$HW_PASSWORD" "$HW_REGISTRY"
           "$HW_REGISTRY" 2>&1 | tee dockerlogin.log
 
         # 验证登录状态
