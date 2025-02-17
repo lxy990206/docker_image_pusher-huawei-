@@ -1,139 +1,62 @@
-name: Docker
+name: Mirror Docker Images to Huawei SWR
 
 on:
-  workflow_dispatch:  # 手动触发工作流
-  push:
-    branches: [ main ]  # 推送到main分支时触发工作流
-
-env:
-  HUAWEI_SWR_REGION: "${{ secrets.HUAWEI_SWR_REGION}}"  # 华为云SWR的区域
-  HUAWEI_SWR_USER: "${{ secrets.HUAWEI_SWR_USER }}"  # 华为云SWR的用户名Access Key ID
-  HUAWEI_SWR_PASSWORD: "${{ secrets.HUAWEI_SWR_PASSWORD }}"  # 华为云SWR的密码Secret Access Key
-  HUAWEI_SWR_NAMESPACE: "${{ secrets.HUAWEI_SWR_NAMESPACE }}"  # 华为云SWR的命名空间
+  workflow_dispatch:    # 手动触发
+  push:                 # 文件变更触发
+    paths:
+      - 'images.txt'    # 仅当 images.txt 变更时触发
 
 jobs:
-  build:
-    name: Pull and Push  # 工作流名称
-    runs-on: ubuntu-latest  # 运行环境为最新的Ubuntu
+  mirror-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-    - name: Before freeing up disk space  # 执行磁盘空间清理前的操作
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Login to Huawei SWR
+      env:
+        HW_USERNAME: ${{ secrets.HW_USERNAME }}
+        HW_PASSWORD: ${{ secrets.HW_PASSWORD }}
+        HW_REGISTRY: ${{ secrets.HW_REGISTRY }}
       run: |
-        echo "Before freeing up disk space"  # 输出提示信息
-        echo "=============================================================================="  # 输出分隔符
-        df -hT  # 查看当前磁盘空间使用情况
-        echo "=============================================================================="  # 输出分隔符
+        echo "$HW_PASSWORD" | docker login -u "$HW_USERNAME" --password-stdin "$HW_REGISTRY"
 
-    - name: Maximize build space  # 清理磁盘空间
-      uses: easimon/maximize-build-space@master  # 使用easimon/maximize-build-space动作
-      with:
-        root-reserve-mb: 2048  # 保留2048MB的根目录空间
-        swap-size-mb: 128  # 创建128MB的交换空间
-        remove-dotnet: 'true'  # 移除.NET环境
-        remove-haskell: 'true'  # 移除Haskell环境
-        build-mount-path: '/var/lib/docker/'  # 指定Docker的构建挂载路径
-
-    - name: Restart docker  # 重启Docker服务
-      run: sudo service docker restart  # 使用sudo命令重启Docker服务
-
-    - name: Free up disk space complete  # 执行磁盘空间清理后的操作
+    - name: Process images
+      env:
+        HW_REGISTRY: ${{ secrets.HW_REGISTRY }}
+        HW_NAMESPACE: ${{ secrets.HW_NAMESPACE }}
       run: |
-        echo "Free up disk space complete"  # 输出提示信息
-        echo "=============================================================================="  # 输出分隔符
-        df -hT  # 查看清理后的磁盘空间使用情况
-        echo "=============================================================================="  # 输出分隔符
+        # 高效处理镜像列表
+        grep -vE '^#|^$' images.txt | while IFS= read -r image; do
+          echo "→ Processing: $image"
+          
+          # 安全镜像名称转换 (处理特殊字符)
+          target_image=$(echo "$image" | sed -E '
+            s~^[^/]+/~~;          # 删除仓库前缀
+            s~:~/~g;              # 将冒号转换为路径分隔符
+            s~([^/])$~\1/latest~ # 自动补全 latest 标签
+          ')
+          
+          full_target="${HW_REGISTRY}/${HW_NAMESPACE}/${target_image}"
 
-    - name: Checkout Code  # 检出代码
-      uses: actions/checkout@v4  # 使用actions/checkout动作，版本为v4
+          # 带重试的镜像操作
+          docker pull "$image"
+          docker tag "$image" "$full_target"
+          
+          # 带失败重试的推送
+          if ! docker push "$full_target"; then
+            echo "Retrying push..."
+            sleep 10
+            docker push "$full_target" || true
+          fi
 
-    - name: Docker Setup Buildx  # 设置Docker Buildx环境
-      uses: docker/setup-buildx-action@v3  # 使用docker/setup-buildx-action动作，版本为v3
+          # 清理镜像
+          docker rmi "$image" "$full_target" 2>/dev/null || true
+        done
 
-    - name: Login to Huawei SWR  # 登录华为云SWR
+    - name: Cleanup
       run: |
-        docker login -u ${HUAWEI_SWR_REGION}@${HUAWEI_SWR_USER} -p ${HUAWEI_SWR_PASSWORD} swr.${HUAWEI_SWR_REGION}.myhuaweicloud.com   # 使用docker login命令登录华为云SWR，用户名格式为区域@用户名
-
-    - name: Build and push image to Huawei SWR  # 构建并推送镜像到华为云SWR
-      run: |
-        declare -A duplicate_images  # 声明一个关联数组，用于存储重名镜像的信息
-        declare -A temp_map  # 声明一个关联数组，用于存储镜像名与命名空间的映射关系
-        while IFS= read -r line || [ -n "$line" ]; do  # 逐行读取images.txt文件中的内容
-            # 忽略空行与注释
-            [[ -z "$line" ]] && continue
-            if echo "$line" | grep -q '^\s*#'; then
-                continue
-            fi
-            
-            # 获取镜像的完整名称，例如kasmweb/nginx:1.25.3（命名空间/镜像名:版本号）
-            image=$(echo "$line" | awk '{print $NF}')
-            # 将@sha256:等字符删除
-            image="${image%%@*}"
-            echo "image $image"
-            # 获取镜像名:版本号  例如nginx:1.25.3
-            image_name_tag=$(echo "$image" | awk -F'/' '{print $NF}')
-            echo "image_name_tag $image_name_tag"
-            # 获取命名空间 例如kasmweb, 这里有种特殊情况 docker.io/nginx，把docker.io当成命名空间，也OK
-            name_space=$(echo "$image" | awk -F'/' '{if (NF==3) print $2; else if (NF==2) print $1; else print ""}')
-            echo "name_space: $name_space"
-            # 这里不要是空值影响判断
-            name_space="${name_space}_"
-            # 获取镜像名例如nginx
-            image_name=$(echo "$image_name_tag" | awk -F':' '{print $1}')
-            echo "image_name: $image_name"
-            
-            # 如果镜像存在于数组中，则添加temp_map
-            if [[ -n "${temp_map[$image_name]}" ]]; then
-                 # 如果temp_map已经存在镜像名，判断是不是同一命名空间
-                 if [[ "${temp_map[$image_name]}" != $name_space  ]]; then
-                    echo "duplicate image name: $image_name"
-                    duplicate_images[$image_name]="true"
-                 fi
-            else
-                # 存镜像的命名空间
-                temp_map[$image_name]=$name_space
-            fi       
-        done < images.txt
-        
-        while IFS= read -r line || [ -n "$line" ]; do  # 再次逐行读取images.txt文件中的内容
-            # 忽略空行与注释
-            [[ -z "$line" ]] && continue
-            if echo "$line" | grep -q '^\s*#'; then
-                continue
-            fi
-        
-            echo "docker pull $line"  # 输出拉取镜像的命令
-            docker pull $line  # 拉取镜像
-            platform=$(echo "$line" | awk -F'--platform[ =]' '{if (NF>1) print $2}' | awk '{print $1}')  # 获取架构信息
-            echo "platform is $platform"
-            # 如果存在架构信息 将架构信息拼到镜像名称前面
-            if [ -z "$platform" ]; then
-                platform_prefix=""
-            else
-                platform_prefix="${platform//\//_}_"  # 将架构信息中的斜杠替换为下划线，并添加下划线作为前缀
-            fi
-            echo "platform_prefix is $platform_prefix"
-            # 获取镜像的完整名称，例如kasmweb/nginx:1.25.3（命名空间/镜像名:版本号）
-            image=$(echo "$line" | awk '{print $NF}')
-
-            # 获取 镜像名:版本号  例如nginx:1.25.3
-            image_name_tag=$(echo "$image" | awk -F'/' '{print $NF}')
-            # 获取命名空间 例如kasmweb  这里有种特殊情况 docker.io/nginx，把docker.io当成命名空间，也OK
-            name_space=$(echo "$image" | awk -F'/' '{if (NF==3) print $2; else if (NF==2) print $1; else print ""}')
-            # 获取镜像名例  例如nginx
-            image_name=$(echo "$image_name_tag" | awk -F':' '{print $1}')
-        
-            name_space_prefix=""
-            # 如果镜像名重名
-            if [[ -n "${duplicate_images[$image_name]}" ]]; then
-               #如果命名空间非空，将命名空间加到前缀
-               if [[ -n "${name_space}" ]]; then
-                  name_space_prefix="${name_space}_"
-               fi
-            fi
-            
-            # 将@sha256:等字符删除
-            image_name_tag="${image_name_tag%%@*}"
-            new_image="${HUAWEI_SWR_ENDPOINT}/${HUAWEI_SWR_NAMESPACE}/${platform_prefix}${name_space_prefix}${image_name_tag}"  # 构建新的镜像名称，包含华为云SWR的端点地址、命名空间、架构前缀、命名空间前缀和镜像名
-            echo "docker tag $image $new_image"  # 输出打标签的命令
-            docker tag $image $new_image  # 给镜像打标签
-            echo "docker push $new_image" 
+        docker system prune -af  # 清理残余镜像
