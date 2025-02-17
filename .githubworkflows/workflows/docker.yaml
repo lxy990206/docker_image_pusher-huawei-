@@ -2,9 +2,9 @@ name: Mirror Docker Images to Huawei SWR
 
 on:
   workflow_dispatch:    # 手动触发
-  push:                 # 文件变更触发
+  push:
     paths:
-      - 'images.txt'    # 仅当 images.txt 变更时触发
+      - 'images.txt'    # 文件变更触发
 
 jobs:
   mirror-images:
@@ -16,15 +16,32 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Login to Huawei SWR
+    - name: Login to Huawei SWR (Secure)
       env:
         HW_USERNAME: ${{ secrets.HW_USERNAME }}
         HW_PASSWORD: ${{ secrets.HW_PASSWORD }}
-        HW_REGISTRY: ${{ secrets.HW_REGISTRY }}
+        HW_REGISTRY: ${{ secrets.HW_REGISTRY }}  # 注意 registry 拼写一致性
       run: |
-        echo "$HW_PASSWORD" | docker login -u "$HW_USERNAME" --password-stdin "$HW_REGISTRY"
+        # 安全验证环境变量
+        if [[ -z "$HW_USERNAME" || -z "$HW_PASSWORD" || -z "$HW_REGISTRY" ]]; then
+          echo "::error::Missing required credentials!"
+          exit 1
+        fi
 
-    - name: Process images
+        # 使用标准输入登录（关键修复）
+        echo "$HW_PASSWORD" | docker login \
+          -u "$HW_USERNAME" \
+          --password-stdin \
+          "$HW_REGISTRY" 2>&1 | tee dockerlogin.log
+
+        # 验证登录状态
+        if ! grep -q "Login Succeeded" dockerlogin.log; then
+          echo "::error::Docker login failed!"
+          cat dockerlogin.log
+          exit 1
+        fi
+
+    - name: Mirror images
       env:
         HW_REGISTRY: ${{ secrets.HW_REGISTRY }}
         HW_NAMESPACE: ${{ secrets.HW_NAMESPACE }}
