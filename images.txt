@@ -7,3 +7,4 @@ xhofe/alist:latest
 cr2.fit2cloud.com/1panel/maxkb
 xiaoyaliu/alist
 photoprism/photoprism:arm64
+
