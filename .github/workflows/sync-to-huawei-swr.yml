@@ -12,8 +12,25 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    - name: Validate Secrets
+      run: |
+        # 验证所有必需的secrets都已设置
+        if [ -z "${{ secrets.HW_SWR_ORG_NAME }}" ]; then
+          echo "❌ 错误: HW_SWR_ORG_NAME 未设置！请配置组织名称"
+          exit 1
+        fi
+        if [ -z "${{ secrets.HW_SWR_REGION }}" ]; then
+          echo "❌ 错误: HW_SWR_REGION 未设置！请配置区域"
+          exit 1
+        fi
+        echo "✅ Secrets 验证通过"
+
     - name: Login to Huawei SWR
       run: |
+        # 确保组织名称小写且无空格
+        ORG_NAME=$(echo "${{ secrets.HW_SWR_ORG_NAME }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        
+        echo "使用组织: $ORG_NAME"
         echo "${{ secrets.HW_SWR_PASSWORD }}" | docker login \
           -u ${{ secrets.HW_SWR_USER }} \
           --password-stdin \
@@ -21,12 +38,29 @@ jobs:
 
     - name: Process Images
       run: |
-        # 从secrets获取小写的组织名称
-        ORG_NAME=$(echo "${{ secrets.HW_SWR_ORG_NAME }}" | tr '[:upper:]' '[:lower:]')
+        # 获取小写组织名称并验证
+        ORG_NAME=$(echo "${{ secrets.HW_SWR_ORG_NAME }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        if [ -z "$ORG_NAME" ]; then
+          echo "❌ 错误: 组织名称为空！"
+          exit 1
+        fi
+        
+        # 验证组织名称格式
+        if [[ ! "$ORG_NAME" =~ ^[a-z0-9_-]+$ ]]; then
+          echo "❌ 错误: 组织名称 '$ORG_NAME' 包含非法字符！"
+          echo "华为云要求: 小写字母、数字、中划线(-)或下划线(_)"
+          exit 1
+        fi
+        
+        echo "✅ 使用组织名称: $ORG_NAME"
+        echo "✅ 区域: ${{ secrets.HW_SWR_REGION }}"
         
         while IFS= read -r image; do
-          # 跳过空行
+          # 跳过空行和注释行
           [ -z "$image" ] && continue
+          [[ "$image" == \#* ]] && continue
+          
+          echo "处理镜像: $image"
           
           # 提取原始镜像名称和标签
           if [[ "$image" == *":"* ]]; then
@@ -44,14 +78,17 @@ jobs:
           lowercase_name=$(echo "$base_name" | tr '[:upper:]' '[:lower:]')
           lowercase_tag=$(echo "$image_tag" | tr '[:upper:]' '[:lower:]')
           
-          # 华为云目标地址
+          # 构建目标镜像地址
           target_image="swr.${{ secrets.HW_SWR_REGION }}.myhuaweicloud.com/$ORG_NAME/$lowercase_name:$lowercase_tag"
           
-          echo "🔧 Processing $image → $target_image"
+          echo "🔧 转换: $image → $target_image"
           
           # 完整操作流程
           docker pull "$image"
           docker tag "$image" "$target_image"
           docker push "$target_image"
           docker rmi "$image" "$target_image" || true
+          
+          echo "✅ 成功推送: $target_image"
+          echo "----------------------------------------"
         done < images.txt
