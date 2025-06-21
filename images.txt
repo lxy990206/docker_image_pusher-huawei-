@@ -1,10 +1,11 @@
 nginx
 #支持私库
 k8s.gcr.io/kube-state-metrics/kube-state-metrics:v2.0.0
-xhofe/alist:latest
-#支持指定架构
---platform=linux/arm64 xiaoyaliu/alist
 cr2.fit2cloud.com/1panel/maxkb
-xiaoyaliu/alist
-photoprism/photoprism:arm64
-
+letta/letta
+lanol/filecodebox:beta
+rustdesk/rustdesk-server
+ghcr.io/immich-app/immich-server:release
+ghcr.io/immich-app/immich-machine-learning:release
+amtoaer/bili-sync
+qdtoday/qd
