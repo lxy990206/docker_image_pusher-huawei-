@@ -21,6 +21,9 @@ jobs:
 
     - name: Process Images
       run: |
+        # 从secrets获取小写的组织名称
+        ORG_NAME=$(echo "${{ secrets.HW_SWR_ORG_NAME }}" | tr '[:upper:]' '[:lower:]')
+        
         while IFS= read -r image; do
           # 跳过空行
           [ -z "$image" ] && continue
@@ -41,8 +44,8 @@ jobs:
           lowercase_name=$(echo "$base_name" | tr '[:upper:]' '[:lower:]')
           lowercase_tag=$(echo "$image_tag" | tr '[:upper:]' '[:lower:]')
           
-          # 华为云目标地址 (ORG_NAME必须小写)
-          target_image="swr.${{ secrets.HW_SWR_REGION }}.myhuaweicloud.com/YOUR_ORG_NAME/$lowercase_name:$lowercase_tag"
+          # 华为云目标地址
+          target_image="swr.${{ secrets.HW_SWR_REGION }}.myhuaweicloud.com/$ORG_NAME/$lowercase_name:$lowercase_tag"
           
           echo "🔧 Processing $image → $target_image"
           
