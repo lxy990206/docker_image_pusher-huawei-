@@ -1,0 +1,44 @@
+name: Sync Docker Images to Huawei SWR
+
+on:
+  push:
+    paths:
+      - 'images.txt'  # 当 images.txt 变更时触发
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  sync-images:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Login to Huawei SWR
+      run: |
+        docker login \
+          -u ${{ secrets.HW_SWR_USER }} \
+          -p ${{ secrets.HW_SWR_PASSWORD }} \
+          ${{ secrets.HW_SWR_REGION }}.swr.myhuaweicloud.com
+
+    - name: Process Images
+      run: |
+        while IFS= read -r image; do
+          # 提取镜像名称和标签
+          image_name=$(echo "$image" | awk -F: '{print $1}' | awk -F/ '{print $NF}')
+          # 华为云目标地址 (替换 YOUR_ORG_NAME)
+          target_image="${{ secrets.HW_SWR_REGION }}.swr.myhuaweicloud.com/YOUR_ORG_NAME/$image_name"
+          
+          echo "Processing $image → $target_image"
+          
+          # 拉取镜像
+          docker pull "$image"
+          
+          # 重新打标签
+          docker tag "$image" "$target_image"
+          
+          # 推送镜像
+          docker push "$target_image"
+          
+          # 清理本地镜像
+          docker rmi "$image" "$target_image"
+        done < images.txt
