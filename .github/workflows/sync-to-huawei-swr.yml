@@ -25,14 +25,28 @@ jobs:
           # 跳过空行
           [ -z "$image" ] && continue
           
-          # 提取镜像名称并转换为小写
-          image_name=$(echo "$image" | awk -F: '{print $1}' | awk -F/ '{print $NF}' | tr '[:upper:]' '[:lower:]')
+          # 提取原始镜像名称和标签
+          if [[ "$image" == *":"* ]]; then
+            image_name="${image%:*}"
+            image_tag="${image#*:}"
+          else
+            image_name="$image"
+            image_tag="latest"
+          fi
           
-          # 华为云目标地址 (ORG_NAME必须小写！)
-          target_image="swr.${{ secrets.HW_SWR_REGION }}.myhuaweicloud.com/YOUR_LOWERCASE_ORG_NAME/$image_name"
+          # 提取基础镜像名 (去掉仓库地址)
+          base_name=$(basename "$image_name")
+          
+          # 转换为全小写 (符合华为云要求)
+          lowercase_name=$(echo "$base_name" | tr '[:upper:]' '[:lower:]')
+          lowercase_tag=$(echo "$image_tag" | tr '[:upper:]' '[:lower:]')
+          
+          # 华为云目标地址 (ORG_NAME必须小写)
+          target_image="swr.${{ secrets.HW_SWR_REGION }}.myhuaweicloud.com/YOUR_ORG_NAME/$lowercase_name:$lowercase_tag"
           
           echo "🔧 Processing $image → $target_image"
           
+          # 完整操作流程
           docker pull "$image"
           docker tag "$image" "$target_image"
           docker push "$target_image"
