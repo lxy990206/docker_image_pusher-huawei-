@@ -1,9 +1,8 @@
-name: Sync Docker Images to Huawei SWR
+name: Sync Images to Huawei SWR
 
 on:
   push:
-    paths:
-      - 'images.txt'
+    paths: [ 'images.txt' ]
   workflow_dispatch:
 
 jobs:
@@ -26,23 +25,16 @@ jobs:
           # 跳过空行
           [ -z "$image" ] && continue
           
-          # 提取镜像名称和标签
-          image_name=$(echo "$image" | awk -F: '{print $1}' | awk -F/ '{print $NF}')
+          # 提取镜像名称并转换为小写
+          image_name=$(echo "$image" | awk -F: '{print $1}' | awk -F/ '{print $NF}' | tr '[:upper:]' '[:lower:]')
           
-          # 华为云目标地址 (使用实际组织名替换 YOUR_ORG_NAME)
-          target_image="swr.${{ secrets.HW_SWR_REGION }}.myhuaweicloud.com/YOUR_ORG_NAME/$image_name"
+          # 华为云目标地址 (ORG_NAME必须小写！)
+          target_image="swr.${{ secrets.HW_SWR_REGION }}.myhuaweicloud.com/YOUR_LOWERCASE_ORG_NAME/$image_name"
           
-          echo "➡️ Processing $image → $target_image"
+          echo "🔧 Processing $image → $target_image"
           
-          # 拉取镜像
           docker pull "$image"
-          
-          # 重新打标签
           docker tag "$image" "$target_image"
-          
-          # 推送镜像
           docker push "$target_image"
-          
-          # 清理本地镜像
           docker rmi "$image" "$target_image" || true
         done < images.txt
