@@ -12,7 +12,6 @@ photoprism/photoprism:latest
 mariadb:11
 containrrr/watchtower
 photoprism/photoprism:arm64
-arm64v8/mariadb:11
 ix64/unlock-music
 tanner23456/playlistdl:v2
 lmk123/migpt-server
