@@ -16,4 +16,6 @@ tanner23456/playlistdl:v2
 lmk123/migpt-server
 idootop/mi-gpt
 hslr/sun-panel
-
+xiangch007/nsmusics
+xiangch007/ninesong
+mongo:6.0
