@@ -29,7 +29,7 @@ milvusdb/milvus:v2.5.10
 nsqio/nsq:v1.2.1
 cozedev/coze-studio-server:latest
 cozedev/coze-studio-web:latest
-cozedev/coze-loop
+cozedev/coze-loop:1.1.0
 redis:8.2.0
 mysql:9.4.0
 clickhouse/clickhouse-server
