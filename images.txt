@@ -37,3 +37,4 @@ minio/minio:RELEASE.2025-06-13T11-33-47Z
 apache/rocketmq:5.3.3
 nginx:1.28.0
 docker.n8n.io/n8nio/n8n
+homeassistant/home-assistant:latest
