@@ -38,5 +38,5 @@ apache/rocketmq:5.3.3
 nginx:1.28.0
 docker.n8n.io/n8nio/n8n
 homeassistant/home-assistant
-xiaomi/miloco-backend
-xiaomi/miloco-ai_engine
+ghcr.io/xiaomi/miloco-backend
+ghcr.io/xiaomi/miloco-ai_engine
