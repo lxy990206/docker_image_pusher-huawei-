@@ -40,3 +40,4 @@ homeassistant/home-assistant
 ghcr.io/xiaomi/miloco-backend
 ghcr.io/xiaomi/miloco-ai_engine
 gpustack/gpustack
+
