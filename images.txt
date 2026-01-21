@@ -45,3 +45,4 @@ rabbitmq:3-management
 redis:alpine
 ghcr.io/firecrawl/playwright-service
 valkey/valkey:alpine
+docker.io/searxng/searxng
