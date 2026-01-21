@@ -41,3 +41,7 @@ ghcr.io/xiaomi/miloco-backend
 ghcr.io/xiaomi/miloco-ai_engine
 gpustack/gpustack
 moefurina/ncm-api
+rabbitmq:3-management
+redis:alpine
+ghcr.io/firecrawl/playwright-service
+valkey/valkey:alpine
